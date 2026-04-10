@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>최적 집중 시간대 추천</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #ffffff;
+      --surface: #f8f9fb;
+      --surface2: #eef0f5;
+      --border: rgba(0,0,0,0.08);
+      --text: #1a1d2e;
+      --muted: #8a90a8;
+      --green: #16a34a;
+      --amber: #d97706;
+      --purple: #7c3aed;
+      --green-dim: rgba(22,163,74,0.08);
+      --amber-dim: rgba(217,119,6,0.08);
+      --purple-dim: rgba(124,58,237,0.08);
+      --font: 'Noto Sans KR', sans-serif;
+      --mono: 'DM Mono', monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 3rem 1rem 4rem;
+    }
+
+    /* 헤더 */
+    header {
+      text-align: center;
+      margin-bottom: 3rem;
+    }
+    header .eyebrow {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.15em;
+      color: var(--muted);
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+    header h1 {
+      font-size: clamp(24px, 5vw, 36px);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+    }
+    header h1 span { color: var(--green); }
+    header p {
+      margin-top: 10px;
+      font-size: 14px;
+      color: var(--muted);
+      font-weight: 300;
+    }
+
+    /* 메인 레이아웃 */
+    .layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      width: 100%;
+      max-width: 860px;
+      align-items: start;
+    }
+    @media (max-width: 640px) {
+      .layout { grid-template-columns: 1fr; }
+    }
+
+    /* 카드 */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.5rem;
+    }
+    .card-title {
+      font-size: 11px;
+      font-family: var(--mono);
+      color: var(--muted);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 1.25rem;
+    }
+
+    /* 슬라이더 항목 */
+    .metric { margin-bottom: 1.5rem; }
+    .metric:last-child { margin-bottom: 0; }
+    .metric-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 8px;
+    }
+    .metric-name {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text);
+    }
+    .metric-hint { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .metric-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .metric-value {
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text);
+      min-width: 70px;
+      text-align: right;
+    }
+    .score-pill {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
+      padding: 2px 8px;
+      border-radius: 20px;
+      background: var(--green-dim);
+      color: var(--green);
+      min-width: 38px;
+      text-align: center;
+      transition: background 0.3s, color 0.3s;
+    }
+    .score-pill.mid { background: var(--amber-dim); color: var(--amber); }
+    .score-pill.low { background: rgba(248,113,113,0.1); color: #f87171; }
+
+    /* 슬라이더 */
+    input[type=range] {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 4px;
+      border-radius: 2px;
+      background: var(--surface2);
+      outline: none;
+      cursor: pointer;
+      margin-top: 6px;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--text);
+      border: 2px solid var(--bg);
+      box-shadow: 0 0 0 1px rgba(255,255,255,0.15);
+      transition: transform 0.15s;
+    }
+    input[type=range]:hover::-webkit-slider-thumb { transform: scale(1.2); }
+    input[type=range]::-moz-range-thumb {
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      background: var(--text);
+      border: 2px solid var(--bg);
+      cursor: pointer;
+    }
+
+    /* 결과 패널 */
+    .result-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.5rem;
+      position: sticky;
+      top: 2rem;
+    }
+    .result-time-block {
+      text-align: center;
+      padding: 2rem 0 1.5rem;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 1.5rem;
+    }
+    .result-icon { font-size: 48px; display: block; margin-bottom: 12px; }
+    .result-time {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      margin-bottom: 6px;
+      transition: color 0.4s;
+    }
+    .result-desc {
+      font-size: 13px;
+      color: var(--muted);
+      font-weight: 300;
+    }
+
+    /* 총점 바 */
+    .score-section { margin-bottom: 1.5rem; }
+    .score-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 10px;
+    }
+    .score-label { font-size: 12px; color: var(--muted); font-family: var(--mono); }
+    .score-total {
+      font-size: 28px;
+      font-weight: 700;
+      font-family: var(--mono);
+      transition: color 0.4s;
+    }
+    .bar-bg {
+      height: 6px;
+      background: var(--surface2);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .bar-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.5s cubic-bezier(.4,0,.2,1), background 0.4s;
+    }
+
+    /* 세부 점수 그리드 */
+    .detail-title {
+      font-size: 11px;
+      font-family: var(--mono);
+      color: var(--muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+    .detail-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 6px;
+    }
+    .detail-item {
+      background: var(--surface2);
+      border-radius: 10px;
+      padding: 10px 4px;
+      text-align: center;
+    }
+    .detail-item .di-name { font-size: 10px; color: var(--muted); margin-bottom: 4px; }
+    .detail-item .di-val {
+      font-size: 16px;
+      font-weight: 700;
+      font-family: var(--mono);
+      transition: color 0.3s;
+    }
+    .detail-item .di-max { font-size: 10px; color: var(--muted); }
+
+    /* 구간 안내 */
+    .guide {
+      margin-top: 1.5rem;
+      border-top: 1px solid var(--border);
+      padding-top: 1.25rem;
+    }
+    .guide-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 6px 0;
+      font-size: 12px;
+    }
+    .guide-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .guide-range { font-family: var(--mono); color: var(--muted); width: 60px; }
+    .guide-label { color: var(--muted); }
+  </style>
+</head>
+<body>
+
+<header>
+  <p class="eyebrow">Wearable Focus Optimizer</p>
+  <h1>오늘의 <span>최적 집중</span> 시간대</h1>
+  <p>웨어러블 데이터를 입력하면 공부 최적 시간을 추천해드려요</p>
+</header>
+
+<div class="layout">
+  <!-- 입력 패널 -->
+  <div>
+    <div class="card">
+      <p class="card-title">수면 데이터</p>
+
+      <div class="metric">
+        <div class="metric-header">
+          <div>
+            <div class="metric-name">총 수면 시간</div>
+            <div class="metric-hint">전날 밤 수면 총량</div>
+          </div>
+          <div class="metric-right">
+            <span class="metric-value" id="sleep-val">7.5시간</span>
+            <span class="score-pill" id="s1-pill">+30</span>
+          </div>
+        </div>
+        <input type="range" min="3" max="12" step="0.5" value="7.5" id="sleep" oninput="update()">
+      </div>
+
+      <div class="metric">
+        <div class="metric-header">
+          <div>
+            <div class="metric-name">깊은 수면 시간</div>
+            <div class="metric-hint">딥슬립(deep sleep) 시간</div>
+          </div>
+          <div class="metric-right">
+            <span class="metric-value" id="deep-val">1시간 15분</span>
+            <span class="score-pill" id="s2-pill">+20</span>
+          </div>
+        </div>
+        <input type="range" min="0" max="3" step="0.25" value="1.25" id="deep" oninput="update()">
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <p class="card-title">심장 & 회복 데이터</p>
+
+      <div class="metric">
+        <div class="metric-header">
+          <div>
+            <div class="metric-name">안정 시 심박수</div>
+            <div class="metric-hint">기상 후 안정 상태 (bpm)</div>
+          </div>
+          <div class="metric-right">
+            <span class="metric-value" id="hr-val">65 bpm</span>
+            <span class="score-pill" id="s3-pill">+30</span>
+          </div>
+        </div>
+        <input type="range" min="45" max="110" step="1" value="65" id="hr" oninput="update()">
+      </div>
+
+      <div class="metric">
+        <div class="metric-header">
+          <div>
+            <div class="metric-name">HRV (심박변이도)</div>
+            <div class="metric-hint">회복도 및 스트레스 지표 (ms)</div>
+          </div>
+          <div class="metric-right">
+            <span class="metric-value" id="hrv-val">52 ms</span>
+            <span class="score-pill" id="s4-pill">+40</span>
+          </div>
+        </div>
+        <input type="range" min="10" max="100" step="1" value="52" id="hrv" oninput="update()">
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <p class="card-title">활동 데이터</p>
+
+      <div class="metric">
+        <div class="metric-header">
+          <div>
+            <div class="metric-name">걸음 수</div>
+            <div class="metric-hint">오늘 현재까지의 활동량</div>
+          </div>
+          <div class="metric-right">
+            <span class="metric-value" id="steps-val">5,500보</span>
+            <span class="score-pill" id="s5-pill">+30</span>
+          </div>
+        </div>
+        <input type="range" min="0" max="15000" step="100" value="5500" id="steps" oninput="update()">
+      </div>
+    </div>
+  </div>
+
+  <!-- 결과 패널 -->
+  <div class="result-panel">
+    <p class="card-title">오늘의 추천</p>
+
+    <div class="result-time-block">
+      <span class="result-icon" id="r-icon">🌅</span>
+      <div class="result-time" id="r-time">오전 (7~10시)</div>
+      <div class="result-desc" id="r-desc">최상 컨디션, 집중력 최고</div>
+    </div>
+
+    <div class="score-section">
+      <div class="score-row">
+        <span class="score-label">총점</span>
+        <span class="score-total" id="r-total">170</span>
+      </div>
+      <div class="bar-bg">
+        <div class="bar-fill" id="r-bar" style="width:100%"></div>
+      </div>
+    </div>
+
+    <div class="detail-title">항목별 점수</div>
+    <div class="detail-grid" id="detail-grid"></div>
+
+    <div class="guide">
+      <div class="guide-row">
+        <div class="guide-dot" style="background:#16a34a"></div>
+        <span class="guide-range">130+</span>
+        <span class="guide-label">🌅 오전 — 최상 컨디션</span>
+      </div>
+      <div class="guide-row">
+        <div class="guide-dot" style="background:#d97706"></div>
+        <span class="guide-range">100~129</span>
+        <span class="guide-label">☀️ 오후 — 안정적 집중</span>
+      </div>
+      <div class="guide-row">
+        <div class="guide-dot" style="background:#dc2626"></div>
+        <span class="guide-range">~99</span>
+        <span class="guide-label">🌙 저녁 — 피로 상태</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const METRICS = [
+    { id: 'sleep', name: '수면', max: 40 },
+    { id: 'deep',  name: '깊은수면', max: 30 },
+    { id: 'hr',    name: '심박수', max: 30 },
+    { id: 'hrv',   name: 'HRV', max: 40 },
+    { id: 'steps', name: '활동량', max: 30 },
+  ];
+
+  function getSleepScore(v) { return v >= 8 ? 40 : v >= 6 ? 30 : 10; }
+  function getDeepScore(v)  { return v >= 1.5 ? 30 : v >= 1 ? 20 : 10; }
+  function getHRScore(v)    { return (v >= 55 && v <= 70) ? 30 : (v <= 80) ? 20 : 10; }
+  function getHRVScore(v)   { return v >= 50 ? 40 : v >= 35 ? 30 : 10; }
+  function getStepsScore(v) { return (v >= 5000 && v <= 8000) ? 30 : v >= 3000 ? 20 : 10; }
+
+  function fmtDeep(v) {
+    let h = Math.floor(v), m = Math.round((v - h) * 60);
+    if (h === 0) return m + '분';
+    if (m === 0) return h + '시간';
+    return h + '시간 ' + m + '분';
+  }
+
+  function pillClass(score, max) {
+    let r = score / max;
+    return r >= 0.8 ? '' : r >= 0.5 ? 'mid' : 'low';
+  }
+
+  function update() {
+    let sleep = parseFloat(document.getElementById('sleep').value);
+    let deep  = parseFloat(document.getElementById('deep').value);
+    let hr    = parseInt(document.getElementById('hr').value);
+    let hrv   = parseInt(document.getElementById('hrv').value);
+    let steps = parseInt(document.getElementById('steps').value);
+
+    let s = [getSleepScore(sleep), getDeepScore(deep), getHRScore(hr), getHRVScore(hrv), getStepsScore(steps)];
+    let total = s.reduce((a, b) => a + b, 0);
+
+    // 값 표시
+    document.getElementById('sleep-val').textContent = sleep + '시간';
+    document.getElementById('deep-val').textContent  = fmtDeep(deep);
+    document.getElementById('hr-val').textContent    = hr + ' bpm';
+    document.getElementById('hrv-val').textContent   = hrv + ' ms';
+    document.getElementById('steps-val').textContent = steps.toLocaleString() + '보';
+
+    // 점수 필 업데이트
+    ['s1-pill','s2-pill','s3-pill','s4-pill','s5-pill'].forEach((id, i) => {
+      let el = document.getElementById(id);
+      el.textContent = '+' + s[i];
+      el.className = 'score-pill ' + pillClass(s[i], METRICS[i].max);
+    });
+
+    // 결과
+    let icon, time, desc, color;
+    if (total >= 130) {
+      icon = '🌅'; time = '오전 (7~10시)'; desc = '최상 컨디션, 집중력 최고'; color = '#16a34a';
+    } else if (total >= 100) {
+      icon = '☀️'; time = '오후 (2~5시)'; desc = '안정적인 집중 가능'; color = '#d97706';
+    } else {
+      icon = '🌙'; time = '저녁 (7~9시)'; desc = '피로 상태, 늦은 시간 추천'; color = '#dc2626';
+    }
+
+    document.getElementById('r-icon').textContent = icon;
+    document.getElementById('r-time').textContent = time;
+    document.getElementById('r-time').style.color = color;
+    document.getElementById('r-desc').textContent = desc;
+    document.getElementById('r-total').textContent = total;
+    document.getElementById('r-total').style.color = color;
+
+    let pct = Math.round((total / 170) * 100);
+    document.getElementById('r-bar').style.width = pct + '%';
+    document.getElementById('r-bar').style.background = color;
+
+    // 세부 그리드
+    let grid = document.getElementById('detail-grid');
+    grid.innerHTML = '';
+    s.forEach((score, i) => {
+      let ratio = score / METRICS[i].max;
+      let c = ratio >= 0.8 ? '#16a34a' : ratio >= 0.5 ? '#d97706' : '#dc2626';
+      grid.innerHTML += `<div class="detail-item">
+        <div class="di-name">${METRICS[i].name}</div>
+        <div class="di-val" style="color:${c}">${score}</div>
+        <div class="di-max">/ ${METRICS[i].max}</div>
+      </div>`;
+    });
+  }
+
+  update();
+</script>
+</body>
+</html>
